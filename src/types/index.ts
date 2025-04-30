@@ -28,13 +28,25 @@ export interface ReviewWindow {
   status: "upcoming" | "open" | "closed";
 }
 
+export interface KRA {
+  id: string;
+  employeeId: string;
+  cycleId: string;
+  name: string;
+  description?: string;
+  status: "draft" | "pending" | "approved" | "rejected";
+  feedback?: string;
+}
+
 export interface KPI {
   id: string;
-  kra: string;
-  kpi: string;
+  kraId: string;
+  description: string;
   target: number;
   unit: string;
   weight: number;
+  status: "draft" | "pending" | "approved" | "rejected";
+  feedback?: string;
 }
 
 export interface Assignment {

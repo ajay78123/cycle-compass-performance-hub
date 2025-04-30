@@ -14,6 +14,8 @@ import TeamGoals from '@/pages/TeamGoals';
 import EmployeeReview from '@/pages/EmployeeReview';
 import ManagerReview from '@/pages/ManagerReview';
 import Profile from '@/pages/Profile';
+import MyKRAs from '@/pages/MyKRAs';
+import ValidateKRAs from '@/pages/ValidateKRAs';
 
 const AppRoutes = () => {
   const { user, isAuthenticated } = useAuth();
@@ -93,9 +95,15 @@ const AppRoutes = () => {
             <ManagerReview />
           </ManagerRoute>
         } />
+        <Route path="validate-kras" element={
+          <ManagerRoute>
+            <ValidateKRAs />
+          </ManagerRoute>
+        } />
         
         {/* Employee routes */}
         <Route path="goals" element={<EmployeeReview />} />
+        <Route path="my-kras" element={<MyKRAs />} />
         
         {/* Common routes */}
         <Route path="profile" element={<Profile />} />
