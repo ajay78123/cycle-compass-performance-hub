@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,193 +17,113 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { KPI, KRA } from '@/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { useKRAs } from '@/hooks/useKRAs';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import api from '@/services/api';
 
-// Mock users
+// Mock users (assuming teamMembers are still needed for selection)
 const teamMembers = [
   { id: "3", name: "Employee User" },
   { id: "4", name: "Taylor Wong" },
 ];
 
-// Mock KRAs
-const mockKras: KRA[] = [
-  {
-    id: "1",
-    employeeId: "3",
-    cycleId: "1",
-    name: "Product Development",
-    description: "Focus on delivering high-quality software products on time",
-    status: "approved"
-  },
-  {
-    id: "2",
-    employeeId: "3",
-    cycleId: "1",
-    name: "Technical Leadership",
-    description: "Provide technical guidance and mentorship to the team",
-    status: "pending",
-  },
-  {
-    id: "3",
-    employeeId: "4",
-    cycleId: "1",
-    name: "Customer Support",
-    description: "Provide excellent customer support",
-    status: "pending",
-  }
-];
-
-// Mock KPIs
-const mockKpis: KPI[] = [
-  {
-    id: "1",
-    kraId: "1",
-    description: "Complete feature releases on schedule",
-    target: 4,
-    unit: "releases",
-    weight: 25,
-    status: "approved"
-  },
-  {
-    id: "2",
-    kraId: "1",
-    description: "Maintain code test coverage",
-    target: 85,
-    unit: "%",
-    weight: 20,
-    status: "approved"
-  },
-  {
-    id: "3",
-    kraId: "2",
-    description: "Conduct technical workshops",
-    target: 4,
-    unit: "workshops",
-    weight: 15,
-    status: "pending"
-  },
-  {
-    id: "4",
-    kraId: "2",
-    description: "Mentor junior developers",
-    target: 2,
-    unit: "developers",
-    weight: 25,
-    status: "pending"
-  },
-  {
-    id: "5",
-    kraId: "3",
-    description: "Resolve customer issues within SLA",
-    target: 95,
-    unit: "%",
-    weight: 40,
-    status: "pending"
-  },
-  {
-    id: "6",
-    kraId: "3",
-    description: "Maintain customer satisfaction rating",
-    target: 4.5,
-    unit: "out of 5",
-    weight: 60,
-    status: "pending"
-  }
-];
-
 const ValidateKRAs = () => {
   const [selectedEmployee, setSelectedEmployee] = useState(teamMembers[0].id);
-  const [kras, setKras] = useState(mockKras);
-  const [kpis, setKpis] = useState(mockKpis);
+  const { kras, kpis, isLoading } = useKRAs(selectedEmployee);
   const [expandedKra, setExpandedKra] = useState<string | null>(null);
   const [feedbackMap, setFeedbackMap] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<'pending' | 'all'>('pending');
   
+  const queryClient = useQueryClient();
+
+  const approveKraMutation = useMutation({
+    mutationFn: async ({ kraId, feedback }: { kraId: string, feedback: string }) => {
+      return api.patch(`/kras/${kraId}/approve`, { feedback });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kras'] });
+      queryClient.invalidateQueries({ queryKey: ['kpis'] });
+      toast.success('KRA and associated KPIs approved');
+    }
+  });
+
+  const rejectKraMutation = useMutation({
+    mutationFn: async ({ kraId, feedback }: { kraId: string, feedback: string }) => {
+      return api.patch(`/kras/${kraId}/reject`, { feedback });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kras'] });
+      queryClient.invalidateQueries({ queryKey: ['kpis'] });
+      toast.success('KRA and associated KPIs rejected with feedback');
+    }
+  });
+
+  const approveKpiMutation = useMutation({
+    mutationFn: async ({ kpiId, feedback }: { kpiId: string, feedback: string }) => {
+      return api.patch(`/kpis/${kpiId}/approve`, { feedback });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kpis'] });
+      toast.success('KPI approved');
+    }
+  });
+
+  const rejectKpiMutation = useMutation({
+    mutationFn: async ({ kpiId, feedback }: { kpiId: string, feedback: string }) => {
+      return api.patch(`/kpis/${kpiId}/reject`, { feedback });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kpis'] });
+      toast.success('KPI rejected with feedback');
+    }
+  });
+
   const handleFeedbackChange = (id: string, feedback: string) => {
     setFeedbackMap(prev => ({ ...prev, [id]: feedback }));
   };
-  
+
   const handleApproveKra = (kraId: string) => {
-    // Update KRA status
-    setKras(prev => 
-      prev.map(kra => 
-        kra.id === kraId 
-          ? { ...kra, status: 'approved', feedback: feedbackMap[kraId] || '' }
-          : kra
-      )
-    );
-    
-    // Update all associated KPIs
-    setKpis(prev => 
-      prev.map(kpi => 
-        kpi.kraId === kraId 
-          ? { ...kpi, status: 'approved' }
-          : kpi
-      )
-    );
-    
-    toast.success('KRA and associated KPIs approved');
+    approveKraMutation.mutate({ 
+      kraId, 
+      feedback: feedbackMap[kraId] || '' 
+    });
   };
-  
+
   const handleRejectKra = (kraId: string) => {
     if (!feedbackMap[kraId]) {
       toast.error('Please provide feedback before rejecting');
       return;
     }
-    
-    // Update KRA status
-    setKras(prev => 
-      prev.map(kra => 
-        kra.id === kraId 
-          ? { ...kra, status: 'rejected', feedback: feedbackMap[kraId] }
-          : kra
-      )
-    );
-    
-    // Update all associated KPIs
-    setKpis(prev => 
-      prev.map(kpi => 
-        kpi.kraId === kraId 
-          ? { ...kpi, status: 'rejected' }
-          : kpi
-      )
-    );
-    
-    toast.success('KRA and associated KPIs rejected with feedback');
+
+    rejectKraMutation.mutate({ 
+      kraId, 
+      feedback: feedbackMap[kraId] 
+    });
   };
-  
+
   const handleApproveKpi = (kpiId: string) => {
-    setKpis(prev => 
-      prev.map(kpi => 
-        kpi.id === kpiId 
-          ? { ...kpi, status: 'approved', feedback: feedbackMap[kpiId] || '' }
-          : kpi
-      )
-    );
-    
-    toast.success('KPI approved');
+    approveKpiMutation.mutate({
+      kpiId,
+      feedback: feedbackMap[kpiId] || ''
+    });
   };
-  
+
   const handleRejectKpi = (kpiId: string) => {
     if (!feedbackMap[kpiId]) {
       toast.error('Please provide feedback before rejecting');
       return;
     }
-    
-    setKpis(prev => 
-      prev.map(kpi => 
-        kpi.id === kpiId 
-          ? { ...kpi, status: 'rejected', feedback: feedbackMap[kpiId] }
-          : kpi
-      )
-    );
-    
-    toast.success('KPI rejected with feedback');
+
+    rejectKpiMutation.mutate({
+      kpiId,
+      feedback: feedbackMap[kpiId]
+    });
   };
-  
+
   const getKpisByKraId = (kraId: string) => {
     return kpis.filter(kpi => kpi.kraId === kraId);
   };
-  
+
   const getEmployeeKras = () => {
     const employeeKras = kras.filter(kra => kra.employeeId === selectedEmployee);
     
@@ -214,11 +133,15 @@ const ValidateKRAs = () => {
     
     return employeeKras;
   };
-  
+
   const pendingKrasCount = kras.filter(kra => 
     kra.employeeId === selectedEmployee && kra.status === 'pending'
   ).length;
-  
+
+  if (isLoading) {
+    return <div>Loading KRAs and KPIs...</div>;
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -370,7 +293,7 @@ const ValidateKRAs = () => {
                                       className="border-green-500 text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20"
                                       onClick={() => handleApproveKpi(kpi.id)}
                                     >
-                                      <Check size={14} className="mr-1" /> Approve
+                                      <Check size=14 className="mr-1" /> Approve
                                     </Button>
                                     <Button 
                                       variant="outline"
@@ -378,7 +301,7 @@ const ValidateKRAs = () => {
                                       className="border-red-500 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                                       onClick={() => handleRejectKpi(kpi.id)}
                                     >
-                                      <X size={14} className="mr-1" /> Reject
+                                      <X size=14 className="mr-1" /> Reject
                                     </Button>
                                   </div>
                                 )}
@@ -414,7 +337,7 @@ const ValidateKRAs = () => {
                           className="border-red-500 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                           onClick={() => handleRejectKra(kra.id)}
                         >
-                          <X size={16} className="mr-2" />
+                          <X size=16 className="mr-2" />
                           Reject KRA & KPIs
                         </Button>
                         <Button 
@@ -422,7 +345,7 @@ const ValidateKRAs = () => {
                           className="border-green-500 text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20"
                           onClick={() => handleApproveKra(kra.id)}
                         >
-                          <Check size={16} className="mr-2" />
+                          <Check size=16 className="mr-2" />
                           Approve KRA & KPIs
                         </Button>
                       </CardFooter>
