@@ -2,6 +2,7 @@
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import AppLayout from '@/components/layout/AppLayout';
 
 // Page imports
@@ -55,61 +56,63 @@ const AppRoutes = () => {
   };
   
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      
-      <Route path="/" element={<AppLayout />}>
-        {/* Dashboard route that renders based on user role */}
-        <Route index element={<DashboardSelector />} />
+    <TooltipProvider>
+      <Routes>
+        <Route path="/login" element={<Login />} />
         
-        {/* Admin routes */}
-        <Route path="cycles/new" element={
-          <AdminRoute>
-            <CreateReviewCycle />
-          </AdminRoute>
-        } />
-        <Route path="users" element={
-          <AdminRoute>
-            <div className="p-6">User Management (Coming Soon)</div>
-          </AdminRoute>
-        } />
-        <Route path="settings" element={
-          <AdminRoute>
-            <div className="p-6">System Settings (Coming Soon)</div>
-          </AdminRoute>
-        } />
-        <Route path="cycles" element={
-          <AdminRoute>
-            <div className="p-6">Manage Review Cycles (Coming Soon)</div>
-          </AdminRoute>
-        } />
-        
-        {/* Manager routes */}
-        <Route path="team-goals" element={
-          <ManagerRoute>
-            <TeamGoals />
-          </ManagerRoute>
-        } />
-        <Route path="reviews" element={
-          <ManagerRoute>
-            <ManagerReview />
-          </ManagerRoute>
-        } />
-        <Route path="validate-kras" element={
-          <ManagerRoute>
-            <ValidateKRAs />
-          </ManagerRoute>
-        } />
-        
-        {/* Employee routes */}
-        <Route path="goals" element={<EmployeeReview />} />
-        <Route path="my-kras" element={<MyKRAs />} />
-        
-        {/* Common routes */}
-        <Route path="profile" element={<Profile />} />
-        <Route path="*" element={<div className="p-6">Page not found</div>} />
-      </Route>
-    </Routes>
+        <Route path="/" element={<AppLayout />}>
+          {/* Dashboard route that renders based on user role */}
+          <Route index element={<DashboardSelector />} />
+          
+          {/* Admin routes */}
+          <Route path="cycles/new" element={
+            <AdminRoute>
+              <CreateReviewCycle />
+            </AdminRoute>
+          } />
+          <Route path="users" element={
+            <AdminRoute>
+              <div className="p-6">User Management (Coming Soon)</div>
+            </AdminRoute>
+          } />
+          <Route path="settings" element={
+            <AdminRoute>
+              <div className="p-6">System Settings (Coming Soon)</div>
+            </AdminRoute>
+          } />
+          <Route path="cycles" element={
+            <AdminRoute>
+              <div className="p-6">Manage Review Cycles (Coming Soon)</div>
+            </AdminRoute>
+          } />
+          
+          {/* Manager routes */}
+          <Route path="team-goals" element={
+            <ManagerRoute>
+              <TeamGoals />
+            </ManagerRoute>
+          } />
+          <Route path="reviews" element={
+            <ManagerRoute>
+              <ManagerReview />
+            </ManagerRoute>
+          } />
+          <Route path="validate-kras" element={
+            <ManagerRoute>
+              <ValidateKRAs />
+            </ManagerRoute>
+          } />
+          
+          {/* Employee routes */}
+          <Route path="goals" element={<EmployeeReview />} />
+          <Route path="my-kras" element={<MyKRAs />} />
+          
+          {/* Common routes */}
+          <Route path="profile" element={<Profile />} />
+          <Route path="*" element={<div className="p-6">Page not found</div>} />
+        </Route>
+      </Routes>
+    </TooltipProvider>
   );
 };
 
