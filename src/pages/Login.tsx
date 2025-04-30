@@ -39,6 +39,7 @@ const Login = () => {
     { role: 'Admin', email: 'admin@example.com', password: 'password' },
     { role: 'Manager', email: 'manager@example.com', password: 'password' },
     { role: 'Employee', email: 'employee@example.com', password: 'password' },
+    { role: 'Test Admin', email: 'test@gmail.com', password: 'testpass' },
   ];
   
   return (
@@ -101,7 +102,7 @@ const Login = () => {
             
             <div className="mt-6 space-y-4">
               <p className="text-sm text-center text-gray-500">Demo Accounts</p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 {demoCredentials.map((cred) => (
                   <Button
                     key={cred.role}

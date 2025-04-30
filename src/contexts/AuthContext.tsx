@@ -36,6 +36,13 @@ const MOCK_USERS: User[] = [
     role: "employee",
     managerId: "2",
     profilePicture: "https://api.dicebear.com/7.x/avataaars/svg?seed=employee"
+  },
+  {
+    id: "4",
+    name: "Test Admin",
+    email: "test@gmail.com",
+    role: "admin",
+    profilePicture: "https://api.dicebear.com/7.x/avataaars/svg?seed=testadmin"
   }
 ];
 
@@ -60,6 +67,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return new Promise((resolve) => {
       setTimeout(() => {
         const foundUser = MOCK_USERS.find(u => u.email === email);
+        
+        // For the test admin account, we check the password
+        if (email === "test@gmail.com" && password !== "testpass") {
+          setIsLoading(false);
+          resolve(false);
+          return;
+        }
         
         if (foundUser) {
           setUser(foundUser);
