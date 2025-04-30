@@ -1,12 +1,12 @@
-import React, { useState } from 'react';import { Button } from '@/components/ui/button';
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Plus, Trash2, Send, ArrowDown } from 'lucide-react';
-
+import { Plus, Trash2, Send, ArrowDown, Edit2 } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -26,10 +26,9 @@ import {
 } from "@/components/ui/form";
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useKRAs, useCreateKRA } from '@/hooks/useKRAs';  
-import { useReviewCycles } from '@/hooks/useReviewCycles';  
-import { useState } from 'react';  
-  
+import { useKRAs, useCreateKRA, useUpdateKRA } from '@/hooks/useKRAs';
+import { useReviewCycles } from '@/hooks/useReviewCycles';
+import { CreateKRAInput } from '@/services/kraService';
 
 type KraFormData = {
   name: string;
@@ -44,85 +43,136 @@ type KraFormData = {
 
 const MyKRAs = () => {
   const { user } = useAuth();
-  const { data: reviewCycles, isLoading: cyclesLoading } = useReviewCycles();  
-  const { data: kras, isLoading: krasLoading } = useKRAs();  
-  const { mutate: createKRA } = useCreateKRA();  
+  const { cycles: reviewCycles, isLoading: cyclesLoading, error: cyclesError } = useReviewCycles();
+  const { kras, isLoading: krasLoading, error: krasError } = useKRAs(user?.id);
+  const { mutate: createKRA } = useCreateKRA();
+  const { mutate: updateKRA } = useUpdateKRA();
 
-  const [selectedCycle, setSelectedCycle] = useState(reviewCycles?.[0]?.id || '');
+  const [selectedCycle, setSelectedCycle] = useState<string>('');
   const [expandedKra, setExpandedKra] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'existing' | 'new'>('existing');
+  const [activeTab, setActiveTab] = useState<'existing' | 'new' | 'edit'>('existing');
+  const [editingKraId, setEditingKraId] = useState<string | null>(null);
 
   const form = useForm<KraFormData>({
     defaultValues: {
       name: '',
       description: '',
-      kpis: [{ description: '', target: 0, unit: '', weight: 0 }]
-    }
+      kpis: [{ description: '', target: 0, unit: '', weight: 0 }],
+    },
   });
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
-    name: "kpis"
+    name: "kpis",
   });
 
-  // Show loading state
+  // Set default cycle when cycles load
+  React.useEffect(() => {
+    if (reviewCycles?.length && !selectedCycle) {
+      setSelectedCycle(reviewCycles[0].id);
+    }
+  }, [reviewCycles, selectedCycle]);
+
+  // Show loading or error states
   if (cyclesLoading || krasLoading) {
     return <div>Loading KRA data...</div>;
   }
 
+  if (cyclesError || krasError) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>
+          Failed to load data: {cyclesError?.message || krasError?.message}
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (!reviewCycles?.length) {
+    return (
+      <Alert>
+        <AlertTitle>No Review Cycles</AlertTitle>
+        <AlertDescription>
+          No active review cycles available. Contact your administrator.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   const onSubmit = (data: KraFormData) => {
-    // Validate total weight = 100%
     const totalWeight = data.kpis.reduce((sum, kpi) => sum + kpi.weight, 0);
-    
     if (totalWeight !== 100) {
       toast.error('KPI weights must sum to 100%');
       return;
     }
 
-    createKRA({
+    const kraData: CreateKRAInput = {
       name: data.name,
       description: data.description,
       cycleId: selectedCycle,
+      employeeId: user!.id,
       kpis: data.kpis.map(kpi => ({
         description: kpi.description,
-        target: parseFloat(kpi.target.toString()),
+        target: kpi.target,
         unit: kpi.unit,
-        weight: parseInt(kpi.weight.toString())
-      }))
-    }, {
+        weight: kpi.weight,
+      })),
+    };
+
+    const mutationOptions = {
       onSuccess: () => {
-        toast.success('KRA created successfully');
+        toast.success(editingKraId ? 'KRA updated successfully' : 'KRA created successfully');
         setActiveTab('existing');
+        setEditingKraId(null);
         form.reset();
       },
       onError: () => {
-        toast.error('Failed to create KRA');
-      }
-    });
+        toast.error(editingKraId ? 'Failed to update KRA' : 'Failed to create KRA');
+      },
+    };
+
+    if (editingKraId) {
+      updateKRA({ id: editingKraId, kraData }, mutationOptions);
+    } else {
+      createKRA(kraData, mutationOptions);
+    }
   };
 
   const addKpi = () => {
     append({ description: '', target: 0, unit: '', weight: 0 });
   };
 
-  const getKpisByKraId = (kraId: string) => {
-    return kras?.find(kra => kra.id === kraId)?.kpis || [];
+  const startEditing = (kra: any) => {
+    setEditingKraId(kra.id);
+    setActiveTab('edit');
+    form.reset({
+      name: kra.name,
+      description: kra.description,
+      kpis: kra.kpis.map((kpi: any) => ({
+        description: kpi.description,
+        target: kpi.target,
+        unit: kpi.unit,
+        weight: kpi.weight,
+      })),
+    });
+    setSelectedCycle(kra.cycleId);
   };
-  
+
   const calculateTotalWeight = () => {
     const weights = form.watch("kpis").map(kpi => Number(kpi.weight));
     return weights.reduce((sum, weight) => sum + weight, 0);
   };
-  
+
   const totalWeight = calculateTotalWeight();
-  
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">My KRAs & KPIs</h1>
         <p className="text-muted-foreground">Manage your Key Result Areas and Key Performance Indicators</p>
       </div>
-      
+
       <div className="flex justify-between items-center">
         <div className="space-y-1">
           <Label htmlFor="cycle">Review Cycle</Label>
@@ -131,7 +181,7 @@ const MyKRAs = () => {
               <SelectValue placeholder="Select review cycle" />
             </SelectTrigger>
             <SelectContent>
-              {reviewCycles?.map(cycle => (
+              {reviewCycles.map(cycle => (
                 <SelectItem key={cycle.id} value={cycle.id}>
                   {cycle.name}
                 </SelectItem>
@@ -139,22 +189,32 @@ const MyKRAs = () => {
             </SelectContent>
           </Select>
         </div>
-        
-        <Button 
-          variant={activeTab === 'new' ? 'secondary' : 'outline'} 
-          onClick={() => setActiveTab(activeTab === 'new' ? 'existing' : 'new')}
+
+        <Button
+          variant={activeTab === 'new' || activeTab === 'edit' ? 'secondary' : 'outline'}
+          onClick={() => {
+            if (activeTab === 'new' || activeTab === 'edit') {
+              setActiveTab('existing');
+              setEditingKraId(null);
+              form.reset();
+            } else {
+              setActiveTab('new');
+            }
+          }}
         >
-          {activeTab === 'new' ? 'Cancel' : 'Add New KRA'}
+          {activeTab === 'new' || activeTab === 'edit' ? 'Cancel' : 'Add New KRA'}
         </Button>
       </div>
-      
-      {activeTab === 'new' ? (
+
+      {(activeTab === 'new' || activeTab === 'edit') ? (
         <Card>
           <CardHeader>
-            <CardTitle>Create New KRA</CardTitle>
-            <CardDescription>Define a new Key Result Area with associated KPIs</CardDescription>
+            <CardTitle>{activeTab === 'new' ? 'Create New KRA' : 'Edit KRA'}</CardTitle>
+            <CardDescription>
+              {activeTab === 'new' ? 'Define a new Key Result Area with associated KPIs' : 'Update the Key Result Area and KPIs'}
+            </CardDescription>
           </CardHeader>
-          
+
           <FormProvider {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)}>
               <CardContent className="space-y-6">
@@ -164,13 +224,11 @@ const MyKRAs = () => {
                     <Input
                       id="name"
                       placeholder="e.g. Product Development"
-                      {...form.register("name", { required: true })}
+                      {...form.register("name", { required: 'KRA name is required' })}
                     />
-                    {form.formState.errors.name && (
-                      <p className="text-sm text-destructive">KRA name is required</p>
-                    )}
+                    <FormMessage>{form.formState.errors.name?.message}</FormMessage>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="description">KRA Description</Label>
                     <Textarea
@@ -180,28 +238,28 @@ const MyKRAs = () => {
                     />
                   </div>
                 </div>
-                
+
                 <Separator />
-                
+
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-medium">Key Performance Indicators</h3>
                     <div className={`text-sm font-medium ${
-                      totalWeight === 100 
-                        ? 'text-green-600 dark:text-green-400' 
+                      totalWeight === 100
+                        ? 'text-green-600 dark:text-green-400'
                         : 'text-red-600 dark:text-red-400'
                     }`}>
                       Total Weight: {totalWeight}%
                     </div>
                   </div>
-                  
+
                   {fields.map((kpi, index) => (
                     <div key={kpi.id} className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-md space-y-4">
                       <div className="flex justify-between">
                         <h4 className="font-medium">KPI {index + 1}</h4>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => remove(index)}
                           disabled={fields.length === 1}
                           className="text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/20 p-1 h-auto"
@@ -209,68 +267,70 @@ const MyKRAs = () => {
                           <Trash2 size={16} />
                         </Button>
                       </div>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor={`kpis.${index}.description`}>KPI Description</Label>
-                          <Input 
+                          <Input
                             id={`kpis.${index}.description`}
                             placeholder="e.g. Complete feature releases on schedule"
-                            {...form.register(`kpis.${index}.description`, { required: true })}
+                            {...form.register(`kpis.${index}.description`, {
+                              required: 'KPI description is required',
+                            })}
                           />
-                          {form.formState.errors.kpis?.[index]?.description && (
-                            <p className="text-sm text-destructive">KPI description is required</p>
-                          )}
+                          <FormMessage>{form.formState.errors.kpis?.[index]?.description?.message}</FormMessage>
                         </div>
-                        
+
                         <div className="space-y-2">
                           <Label htmlFor={`kpis.${index}.target`}>Target</Label>
                           <div className="flex space-x-2">
-                            <Input 
+                            <Input
                               id={`kpis.${index}.target`}
                               type="number"
                               placeholder="e.g. 4"
-                              {...form.register(`kpis.${index}.target`, { 
-                                required: true,
-                                valueAsNumber: true
+                              {...form.register(`kpis.${index}.target`, {
+                                required: 'Target is required',
+                                valueAsNumber: true,
+                                min: { value: 0.01, message: 'Target must be positive' },
                               })}
                             />
-                            <Input 
+                            <Input
                               id={`kpis.${index}.unit`}
                               placeholder="Unit (e.g. releases, %)"
-                              {...form.register(`kpis.${index}.unit`, { required: true })}
+                              {...form.register(`kpis.${index}.unit`, {
+                                required: 'Unit is required',
+                              })}
                             />
                           </div>
-                          {(form.formState.errors.kpis?.[index]?.target || form.formState.errors.kpis?.[index]?.unit) && (
-                            <p className="text-sm text-destructive">Target and unit are required</p>
-                          )}
+                          <FormMessage>
+                            {form.formState.errors.kpis?.[index]?.target?.message ||
+                              form.formState.errors.kpis?.[index]?.unit?.message}
+                          </FormMessage>
                         </div>
-                        
+
                         <div className="space-y-2">
                           <Label htmlFor={`kpis.${index}.weight`}>Weight (%)</Label>
-                          <Input 
+                          <Input
                             id={`kpis.${index}.weight`}
                             type="number"
                             min="1"
                             max="100"
                             placeholder="e.g. 25"
-                            {...form.register(`kpis.${index}.weight`, { 
-                              required: true,
+                            {...form.register(`kpis.${index}.weight`, {
+                              required: 'Weight is required',
                               valueAsNumber: true,
-                              min: 1,
-                              max: 100
+                              min: { value: 1, message: 'Weight must be at least 1' },
+                              max: { value: 100, message: 'Weight cannot exceed 100' },
                             })}
                           />
-                          {form.formState.errors.kpis?.[index]?.weight && (
-                            <p className="text-sm text-destructive">Weight must be between 1 and 100</p>
-                          )}
+                          <FormMessage>{form.formState.errors.kpis?.[index]?.weight?.message}</FormMessage>
                         </div>
                       </div>
                     </div>
                   ))}
-                  
-                  <Button 
-                    variant="outline" 
+
+                  <Button
+                    variant="outline"
                     type="button"
                     onClick={addKpi}
                     className="w-full border-dashed"
@@ -280,15 +340,15 @@ const MyKRAs = () => {
                   </Button>
                 </div>
               </CardContent>
-              
+
               <CardFooter className="flex justify-end space-x-2">
-                <Button 
+                <Button
                   type="submit"
-                  disabled={totalWeight !== 100}
+                  disabled={totalWeight !== 100 || !selectedCycle}
                   className="bg-kpi-blue hover:bg-blue-700"
                 >
                   <Send size={16} className="mr-2" />
-                  Submit for Approval
+                  {activeTab === 'new' ? 'Submit for Approval' : 'Resubmit for Approval'}
                 </Button>
               </CardFooter>
             </form>
@@ -312,8 +372,8 @@ const MyKRAs = () => {
                       <CardTitle className="flex items-center">
                         {kra.name}
                         <span className={`ml-2 text-xs px-2 py-1 rounded-full ${
-                          kra.status === 'approved' 
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' 
+                          kra.status === 'approved'
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
                             : kra.status === 'rejected'
                               ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
                               : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
@@ -325,16 +385,27 @@ const MyKRAs = () => {
                         <CardDescription>{kra.description}</CardDescription>
                       )}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setExpandedKra(expandedKra === kra.id ? null : kra.id)}
-                    >
-                      {expandedKra === kra.id ? <ArrowDown size={16} /> : <ArrowDown size={16} />}
-                    </Button>
+                    <div className="flex gap-2">
+                      {kra.status === 'rejected' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => startEditing(kra)}
+                        >
+                          <Edit2 size={16} />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setExpandedKra(expandedKra === kra.id ? null : kra.id)}
+                      >
+                        <ArrowDown size={16} />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
-                
+
                 {expandedKra === kra.id && (
                   <CardContent>
                     <div className="space-y-4">
@@ -344,12 +415,12 @@ const MyKRAs = () => {
                           <p className="text-sm">{kra.feedback}</p>
                         </div>
                       )}
-                      
+
                       <h4 className="text-sm font-medium">KPIs:</h4>
                       <div className="space-y-3">
-                        {getKpisByKraId(kra.id).map(kpi => (
-                          <div 
-                            key={kpi.id} 
+                        {kra.kpis.map(kpi => (
+                          <div
+                            key={kpi.id}
                             className="border p-3 rounded-md"
                           >
                             <div className="flex justify-between items-start mb-2">
@@ -360,8 +431,8 @@ const MyKRAs = () => {
                                 </div>
                               </div>
                               <span className={`text-xs px-2 py-1 rounded-full ${
-                                kpi.status === 'approved' 
-                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' 
+                                kpi.status === 'approved'
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
                                   : kpi.status === 'rejected'
                                     ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
                                     : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
@@ -369,7 +440,7 @@ const MyKRAs = () => {
                                 {kpi.status.charAt(0).toUpperCase() + kpi.status.slice(1)}
                               </span>
                             </div>
-                            
+
                             {kpi.feedback && (
                               <div className="text-sm bg-gray-50 dark:bg-gray-800/50 p-2 rounded mt-2">
                                 <span className="font-medium">Feedback: </span>

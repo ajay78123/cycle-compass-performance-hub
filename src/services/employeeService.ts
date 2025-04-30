@@ -1,19 +1,37 @@
-import api from './api';  
-  
-export interface Employee {  
-  id?: string;  
-  name: string;  
-  email: string;  
-  department: string;  
-  role: 'admin' | 'manager' | 'employee';  
-  manager?: string;  
-}  
-  
-export const getEmployees = () => api.get<Employee[]>('/employees');  
-export const getEmployee = (id: string) => api.get<Employee>(`/employees/${id}`);  
-export const createEmployee = (employee: Omit<Employee, 'id'>) =>   
-  api.post<Employee>('/employees', employee);  
-export const updateEmployee = (id: string, employee: Partial<Employee>) =>   
-  api.put<Employee>(`/employees/${id}`, employee);  
-export const deleteEmployee = (id: string) =>   
-  api.delete(`/employees/${id}`);
+import api from './api';
+import { Employee } from '@/types';
+
+export const getEmployees = async (): Promise<Employee[]> => {
+  try {
+    const response = await api.get<Employee[]>('/employees');
+    return response.data;
+  } catch (error) {
+    throw new Error('Failed to fetch employees');
+  }
+};
+
+export const createEmployee = async (employeeData: Omit<Employee, 'id'>): Promise<Employee> => {
+  try {
+    const response = await api.post<Employee>('/employees', employeeData);
+    return response.data;
+  } catch (error) {
+    throw new Error('Failed to create employee');
+  }
+};
+
+export const updateEmployee = async (id: string, employeeData: Partial<Employee>): Promise<Employee> => {
+  try {
+    const response = await api.put<Employee>(`/employees/${id}`, employeeData);
+    return response.data;
+  } catch (error) {
+    throw new Error(`Failed to update employee ${id}`);
+  }
+};
+
+export const deleteEmployee = async (id: string): Promise<void> => {
+  try {
+    await api.delete(`/employees/${id}`);
+  } catch (error) {
+    throw new Error(`Failed to delete employee ${id}`);
+  }
+};

@@ -1,55 +1,50 @@
-import { useState, useEffect } from 'react';  
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';  
-import api from '../services/api';  
-import { KRA, KPI } from '@/types';  
-  
-export function useKRAs(employeeId?: string, cycleId?: string) {  
-  const queryClient = useQueryClient();  
-    
-  const { data: kras, isLoading: krasLoading, error: krasError } = useQuery({  
-    queryKey: ['kras', employeeId, cycleId],  
-    queryFn: async () => {  
-      const params = {};  
-      if (employeeId) params.employeeId = employeeId;  
-      if (cycleId) params.cycleId = cycleId;  
-        
-      const response = await api.get('/kras', { params });  
-      return response.data;  
-    }  
-  });  
-    
-  const { data: kpis, isLoading: kpisLoading, error: kpisError } = useQuery({  
-    queryKey: ['kpis', employeeId, cycleId],  
-    queryFn: async () => {  
-      const params = {};  
-      if (employeeId) params.employeeId = employeeId;  
-      if (cycleId) params.cycleId = cycleId;  
-        
-      const response = await api.get('/kpis', { params });  
-      return response.data;  
-    }  
-  });  
-    
-  return {   
-    kras: kras || [],   
-    kpis: kpis || [],   
-    isLoading: krasLoading || kpisLoading,  
-    error: krasError || kpisError  
-  };  
-}  
-  
-export function useCreateKRA() {  
-  const queryClient = useQueryClient();  
-    
-  const mutation = useMutation({  
-    mutationFn: async (kraData: any) => {  
-      const response = await api.post('/kras', kraData);  
-      return response.data;  
-    },  
-    onSuccess: () => {  
-      queryClient.invalidateQueries({ queryKey: ['kras'] });  
-      queryClient.invalidateQueries({ queryKey: ['kpis'] });  
-    }  
-  });  
-    
-  return mutation;  
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getKRAs, createKRA, updateKRA, deleteKRA, CreateKRAInput } from '@/services/kraService';
+import { KRA } from '@/types';
+
+export function useKRAs(employeeId?: string, cycleId?: string) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['kras', employeeId, cycleId],
+    queryFn: () => getKRAs(employeeId, cycleId),
+  });
+
+  return {
+    kras: data || [],
+    isLoading,
+    error,
+  };
+}
+
+export function useCreateKRA() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (kraData: CreateKRAInput) => createKRA(kraData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kras'] });
+    },
+  });
+}
+
+export function useUpdateKRA() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, kraData }: { id: string; kraData: Partial<CreateKRAInput> }) =>
+      updateKRA(id, kraData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kras'] });
+    },
+  });
+}
+
+export function useDeleteKRA() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => deleteKRA(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kras'] });
+    },
+  });
+}
