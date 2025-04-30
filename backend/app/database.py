@@ -13,7 +13,15 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_DRIVER = os.getenv("DB_DRIVER")
 
 # Connection string
-CONNECTION_STRING = f"DRIVER={{{DB_DRIVER}}};SERVER={DB_SERVER};DATABASE={DB_NAME};UID={DB_USER};PWD={DB_PASSWORD}"
+# CONNECTION_STRING = f"DRIVER={{{DB_DRIVER}}};SERVER={DB_SERVER};DATABASE={DB_NAME};UID={DB_USER};PWD={DB_PASSWORD}"
+CONNECTION_STRING = (
+    f"DRIVER={{{DB_DRIVER}}};"
+    f"SERVER={DB_SERVER};"
+    f"DATABASE={DB_NAME};"
+    f"UID={DB_USER};"
+    f"PWD={DB_PASSWORD};"
+    f"TrustServerCertificate=yes"
+)
 
 def get_db_connection():
     """Create and return a new database connection"""

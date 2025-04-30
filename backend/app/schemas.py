@@ -21,7 +21,7 @@ class LoginRequest(BaseModel):
 class UserBase(BaseModel):
     name: str
     email: EmailStr
-    role: str = Field(..., regex="^(admin|manager|employee)$")
+    role: str = Field(..., pattern="^(admin|manager|employee)$")
 
 class UserCreate(UserBase):
     password: str
@@ -48,7 +48,7 @@ class ReviewCycleBase(BaseModel):
     name: str
     start_date: date
     end_date: date
-    frequency: str = Field(..., regex="^(quarterly|half-yearly)$")
+    frequency: str = Field(..., pattern="^(quarterly|half-yearly)$")
 
     @validator('end_date')
     def end_date_must_be_after_start_date(cls, v, values):
