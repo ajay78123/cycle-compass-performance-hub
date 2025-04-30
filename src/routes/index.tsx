@@ -17,6 +17,7 @@ import ManagerReview from '@/pages/ManagerReview';
 import Profile from '@/pages/Profile';
 import MyKRAs from '@/pages/MyKRAs';
 import ValidateKRAs from '@/pages/ValidateKRAs';
+import EmployeeManagement from '@/pages/EmployeeManagement';  
 
 const AppRoutes = () => {
   const { user, isAuthenticated } = useAuth();
@@ -86,6 +87,12 @@ const AppRoutes = () => {
             </AdminRoute>
           } />
           
+          <Route path="users" element={  
+            <AdminRoute>  
+              <EmployeeManagement />  
+            </AdminRoute>  
+          } />
+          
           {/* Manager routes */}
           <Route path="team-goals" element={
             <ManagerRoute>
@@ -102,6 +109,7 @@ const AppRoutes = () => {
               <ValidateKRAs />
             </ManagerRoute>
           } />
+          
           
           {/* Employee routes */}
           <Route path="goals" element={<EmployeeReview />} />

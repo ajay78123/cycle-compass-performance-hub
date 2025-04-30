@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Plus, Trash2, Send, ArrowDown, Check, X } from 'lucide-react';
+import { Plus, Trash2, Send, ArrowDown } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -15,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { KPI, KRA, ReviewCycle } from '@/types';
 import { useForm, FormProvider, useFieldArray } from "react-hook-form";
 import {
   Form,
@@ -28,69 +26,8 @@ import {
 } from "@/components/ui/form";
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-
-// Mock review cycles
-const reviewCycles: ReviewCycle[] = [
-  {
-    id: "1",
-    name: "FY 2024-25 Annual Review",
-    startDate: "2024-04-01",
-    endDate: "2025-03-31",
-    frequency: "quarterly",
-    status: "open"
-  }
-];
-
-// Mock KRAs
-const mockKras: KRA[] = [
-  {
-    id: "1",
-    employeeId: "3",
-    cycleId: "1",
-    name: "Product Development",
-    description: "Focus on delivering high-quality software products on time",
-    status: "approved"
-  },
-  {
-    id: "2",
-    employeeId: "3",
-    cycleId: "1",
-    name: "Technical Leadership",
-    description: "Provide technical guidance and mentorship to the team",
-    status: "pending",
-  }
-];
-
-// Mock KPIs
-const mockKpis: KPI[] = [
-  {
-    id: "1",
-    kraId: "1",
-    description: "Complete feature releases on schedule",
-    target: 4,
-    unit: "releases",
-    weight: 25,
-    status: "approved"
-  },
-  {
-    id: "2",
-    kraId: "1",
-    description: "Maintain code test coverage",
-    target: 85,
-    unit: "%",
-    weight: 20,
-    status: "approved"
-  },
-  {
-    id: "3",
-    kraId: "2",
-    description: "Conduct technical workshops",
-    target: 4,
-    unit: "workshops",
-    weight: 15,
-    status: "pending"
-  }
-];
+import { useKRAs, useCreateKRA } from '@/hooks/useKRAs';  
+import { useReviewCycles } from '@/hooks/useReviewCycles';  
 
 type KraFormData = {
   name: string;
@@ -105,9 +42,11 @@ type KraFormData = {
 
 const MyKRAs = () => {
   const { user } = useAuth();
-  const [selectedCycle, setSelectedCycle] = useState(reviewCycles[0].id);
-  const [kras, setKras] = useState(mockKras);
-  const [kpis, setKpis] = useState(mockKpis);
+  const { data: reviewCycles, isLoading: cyclesLoading } = useReviewCycles();  
+  const { data: kras, isLoading: krasLoading } = useKRAs();  
+  const { mutate: createKRA } = useCreateKRA();  
+
+  const [selectedCycle, setSelectedCycle] = useState(reviewCycles?.[0]?.id || '');
   const [expandedKra, setExpandedKra] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'existing' | 'new'>('existing');
 
@@ -124,6 +63,11 @@ const MyKRAs = () => {
     name: "kpis"
   });
 
+  // Show loading state
+  if (cyclesLoading || krasLoading) {
+    return <div>Loading KRA data...</div>;
+  }
+
   const onSubmit = (data: KraFormData) => {
     // Validate total weight = 100%
     const totalWeight = data.kpis.reduce((sum, kpi) => sum + kpi.weight, 0);
@@ -132,36 +76,27 @@ const MyKRAs = () => {
       toast.error('KPI weights must sum to 100%');
       return;
     }
-    
-    // Here we would typically send this to an API
-    // For now, we'll just mock the creation of new KRAs and KPIs
-    const newKraId = `new-${Date.now()}`;
-    
-    const newKra: KRA = {
-      id: newKraId,
-      employeeId: user?.id || '',
-      cycleId: selectedCycle,
+
+    createKRA({
       name: data.name,
       description: data.description,
-      status: 'pending'
-    };
-    
-    const newKpis = data.kpis.map((kpi, index) => ({
-      id: `new-kpi-${Date.now()}-${index}`,
-      kraId: newKraId,
-      description: kpi.description,
-      target: kpi.target,
-      unit: kpi.unit,
-      weight: kpi.weight,
-      status: 'pending' as const
-    }));
-    
-    setKras([...kras, newKra]);
-    setKpis([...kpis, ...newKpis]);
-    
-    toast.success('KRA and KPIs submitted for manager approval');
-    form.reset();
-    setActiveTab('existing');
+      cycleId: selectedCycle,
+      kpis: data.kpis.map(kpi => ({
+        description: kpi.description,
+        target: parseFloat(kpi.target.toString()),
+        unit: kpi.unit,
+        weight: parseInt(kpi.weight.toString())
+      }))
+    }, {
+      onSuccess: () => {
+        toast.success('KRA created successfully');
+        setActiveTab('existing');
+        form.reset();
+      },
+      onError: () => {
+        toast.error('Failed to create KRA');
+      }
+    });
   };
 
   const addKpi = () => {
@@ -169,7 +104,7 @@ const MyKRAs = () => {
   };
 
   const getKpisByKraId = (kraId: string) => {
-    return kpis.filter(kpi => kpi.kraId === kraId);
+    return kras?.find(kra => kra.id === kraId)?.kpis || [];
   };
   
   const calculateTotalWeight = () => {
@@ -194,7 +129,7 @@ const MyKRAs = () => {
               <SelectValue placeholder="Select review cycle" />
             </SelectTrigger>
             <SelectContent>
-              {reviewCycles.map(cycle => (
+              {reviewCycles?.map(cycle => (
                 <SelectItem key={cycle.id} value={cycle.id}>
                   {cycle.name}
                 </SelectItem>
@@ -359,7 +294,7 @@ const MyKRAs = () => {
         </Card>
       ) : (
         <div className="space-y-4">
-          {kras.length === 0 ? (
+          {kras?.length === 0 ? (
             <Alert>
               <AlertTitle>No KRAs found</AlertTitle>
               <AlertDescription>
@@ -367,7 +302,7 @@ const MyKRAs = () => {
               </AlertDescription>
             </Alert>
           ) : (
-            kras.map(kra => (
+            kras?.map(kra => (
               <Card key={kra.id} className="overflow-hidden">
                 <CardHeader>
                   <div className="flex items-center justify-between">
